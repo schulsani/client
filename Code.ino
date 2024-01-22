@@ -7,7 +7,7 @@
 #include <ArduinoJson.h>
 
 TFT_eSPI tft = TFT_eSPI();
-#define BOOT_BUTTON_PIN 0
+#define BOOT_BUTTON_PIN 14
 
 const char *ssid = "";
 const char *password = "";
@@ -18,6 +18,7 @@ const char *mqtt_username = "";
 const char *mqtt_password = "";
 const int mqtt_port = 1883;
 const int buzzerPin =  1;
+int alarm_1;
 
 
 WiFiClient espClient;
@@ -42,30 +43,31 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
         DynamicJsonDocument doc(2 * JSON_OBJECT_SIZE(3));
         deserializeJson(doc, (char*)payload);
-        
-        uint16_t red = TFT_RED;
-        tft.fillRect(0, 0, tft.width(), tft.height(), red);
         unfall = doc["unfall"];
         raum = doc["raum"];
+
+        const char* receivedAlarm = doc["alarm"]; 
+        alarmState = atoi(receivedAlarm);
+        if (alarmState == 1) {
+          tft.fillScreen(TFT_RED);
+        }
+        else {
+          tft.fillScreen(TFT_BLACK);
+        }
         displayText(25, 10, 2, "Schulsani Pagger");
-        const char* receivedAlarm = doc["alarm"];
         Serial.println("Unfall: " + String(unfall));
         Serial.println("Raum: " + String(raum));
         Serial.println("Alarm: " + String(receivedAlarm));
-
         tft.setTextSize(2.5);
         tft.setCursor(25, 50);
         tft.print("Unfall: " + String(unfall));
         tft.setTextSize(2.5);
         tft.setCursor(25, 90);
         tft.print("Raum: " + String(raum));
-        unfall_1 = unfall;
-        raum_1 = raum;
         delay(2000);
 
         Serial.println();
         Serial.println("-----------------------");
-        alarmState = atoi(receivedAlarm);
     }
 }
 
@@ -136,27 +138,25 @@ void setup() {
 
 void loop() {
     displayText(25, 10, 2, "Schulsani Pagger");
-    tft.setTextSize(2.5);
-    tft.setCursor(25, 50);
-    tft.print("Unfall: " + String(unfall));
-    tft.setTextSize(2.5);
-    tft.setCursor(25, 90);
-    tft.print("Raum: " + String(raum));
-    delay(2000);
-
-    if (digitalRead(BOOT_BUTTON_PIN) == LOW) {
-        alarmState = 0;
-        client.publish("alarm", "Alarm wurde von den Schulsanitätern bestätigt");
-        tft.fillScreen(TFT_BLACK);
-        delay(1000);
-    }
     if (alarmState == 1) {
         playMelody();
     }
-    else {
+    if (digitalRead(BOOT_BUTTON_PIN) == LOW) {
+        alarm_1 = 0;
+        raum_1 = raum;
+        unfall_1 = unfall;
+        
+        // Declare the message variable
+        String message = "{\"raum\":\"" + String(raum_1) + "\",\"unfall\":\"" + String(unfall_1) + "\",\"alarm\":\"" + String(alarm_1) + "\"}";
+
+
+        client.publish("send", message.c_str());
+        client.publish("alarm", "Alarm wurde von den Schulsanitätern bestätigt");
+        delay(1000);
     }
     client.loop();
 }
+
 
 void displayText(int x, int y, int size, const char *text) {
     tft.setCursor(x, y);
